@@ -1849,7 +1849,20 @@ export default function App() {
         ].slice(-80)
       );
     }
-    if (msg.type === 'alert') setAlerts(p => [msg.data, ...p].slice(0, 50));
+    if (msg.type === 'alert') {
+      setAlerts(p => [msg.data, ...p].slice(0, 50));
+      // Native OS notification — works in Electron and browser
+      const a = msg.data;
+      if (window.electron?.isElectron) {
+        window.electron.showNotification({
+          title: `CareWatch Alert — ${a.resident_name || 'Resident'}`,
+          body: a.message,
+          urgency: a.urgency,
+        });
+      } else if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`CareWatch — ${a.resident_name || 'Resident'}`, { body: a.message, icon: '/icon-192.png' });
+      }
+    }
     if (msg.type === 'enrollment_started') console.log('Enrollment started:', msg.subject);
     if (msg.type === 'enrollment_finished') console.log('Enrollment finished');
   }, []);
@@ -1866,6 +1879,7 @@ export default function App() {
   const ack = async id => {
     await fetch(`${API}/api/alerts/${id}/acknowledge`, { method: 'POST', credentials: 'include' }).catch(() => {});
     setAlerts(p => p.map(a => (a.id === id ? { ...a, acknowledged: true } : a)));
+    window.electron?.clearBadge();
   };
 
   const unacked = alerts.filter(a => !a.acknowledged).length;

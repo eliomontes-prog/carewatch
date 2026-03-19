@@ -1,0 +1,91 @@
+# render.yaml — Deploy CareWatch to Render.com
+# Setup:
+#   1. Push this repo to GitHub
+#   2. Connect repo in Render dashboard → New → Blueprint
+#   3. Fill in the "sync: false" env vars in the Render dashboard
+#   4. Deploy!
+
+services:
+  # ── Backend API ───────────────────────────────────────────────
+  - type: web
+    name: carewatch-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: carewatch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: carewatch-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      # ↓ Enter these manually in Render dashboard
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_EMAIL
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false   # e.g. https://carewatch.onrender.com
+      - key: FRONTEND_URL
+        sync: false   # same as CORS_ORIGIN
+      - key: ESCALATION_TIER1_MINUTES
+        value: "10"
+      - key: ESCALATION_TIER2_MINUTES
+        value: "25"
+      - key: ALERT_COOLDOWN_MINUTES
+        value: "15"
+
+  # ── Frontend Static Site ──────────────────────────────────────
+  - type: static
+    name: carewatch-frontend
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false   # e.g. https://carewatch-backend.onrender.com
+      - key: VITE_WS_URL
+        sync: false   # e.g. wss://carewatch-backend.onrender.com
+
+# ── Managed Databases ─────────────────────────────────────────
+databases:
+  - name: carewatch-db
+    databaseName: carewatch
+    plan: starter
+
+  - name: carewatch-redis
+    type: redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru

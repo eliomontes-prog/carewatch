@@ -1,0 +1,107 @@
+version: "3.8"
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: carewatch
+      POSTGRES_USER: carewatch
+      POSTGRES_PASSWORD: carewatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - carewatch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carewatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Redis ──────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - carewatch-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── RuView sensing server (simulated) ─────────────────────────
+  ruview:
+    image: ruvnet/wifi-densepose:latest
+    platform: linux/amd64
+    ports:
+      - "3000:3000"     # REST API
+      - "3001:3001"     # WebSocket
+      - "5005:5005/udp" # ESP32 UDP input
+    environment:
+      - SOURCE=simulate
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── RuView with real ESP32 hardware ───────────────────────────
+  ruview-esp32:
+    image: ruvnet/wifi-densepose:latest
+    ports:
+      - "3000:8080"
+      - "3001:8765"
+      - "5005:5005/udp"
+    command: ["--source", "esp32", "--udp-port", "5005"]
+    restart: unless-stopped
+    profiles: ["hardware"]
+
+  # ── CareWatch Backend ─────────────────────────────────────────
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://carewatch:carewatch@postgres:5432/carewatch
+      - REDIS_URL=redis://redis:6379
+      - RUVIEW_WS_URL=ws://ruview:3001/ws/sensing
+      - RUVIEW_REST_URL=http://ruview:3000
+      - NODE_ENV=development
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ruview:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - carewatch-uploads:/tmp/carewatch-uploads
+    restart: unless-stopped
+
+  # ── CareWatch Frontend ────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:4000
+      - VITE_WS_URL=ws://localhost:4000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  carewatch-pgdata:
+  carewatch-redis:
+  carewatch-uploads:

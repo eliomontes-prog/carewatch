@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build output
+frontend/dist/
+backend/dist/
+
+# Environment (contains secrets)
+.env
+.env.local
+.env.*.local
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Uploads
+/tmp/carewatch-uploads/
+
+# OS / Editor
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Capacitor
+frontend/ios/App/App/public/
+frontend/android/app/src/main/assets/public/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+worldcup_predictor/

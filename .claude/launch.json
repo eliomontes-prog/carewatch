@@ -1,0 +1,32 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/index.js"],
+      "port": 4000,
+      "cwd": "backend"
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5173"],
+      "port": 5173,
+      "cwd": "frontend"
+    },
+    {
+      "name": "esp32-bridge",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/services/esp32-bridge.js"],
+      "port": 5005,
+      "cwd": "backend"
+    },
+    {
+      "name": "telio-smart-link",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "telio-smart-link", "-l", "8090", "--no-clipboard"],
+      "port": 8090
+    }
+  ]
+}

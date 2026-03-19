@@ -1,0 +1,7 @@
+key,type,encoding,value
+csi_cfg,namespace,,
+ssid,data,string,SETUP-69DC
+password,data,string,hardly6973build
+target_ip,data,string,192.168.0.80
+target_port,data,u16,5005
+node_id,data,u8,1

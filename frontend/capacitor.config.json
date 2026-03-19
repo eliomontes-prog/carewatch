@@ -1,0 +1,44 @@
+{
+  "appId": "com.carewatch.app",
+  "appName": "CareWatch",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*.ouraring.com"]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#F9FAFB",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "iosSpinnerStyle": "small",
+      "spinnerColor": "#2563EB"
+    },
+    "StatusBar": {
+      "style": "Light",
+      "backgroundColor": "#2563EB"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#2563EB"
+    }
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#F9FAFB",
+    "scrollEnabled": true,
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "android": {
+    "backgroundColor": "#F9FAFB",
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

@@ -60,6 +60,13 @@ services:
       - key: ALERT_COOLDOWN_MINUTES
         value: "15"
 
+  # ── Redis ─────────────────────────────────────────────────────
+  - type: redis
+    name: carewatch-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
   # ── Frontend (served as a Node web service) ───────────────────
   - type: web
     name: carewatch-frontend
@@ -79,7 +86,3 @@ databases:
     databaseName: carewatch
     plan: starter
 
-  - name: carewatch-redis
-    type: redis
-    plan: starter
-    maxmemoryPolicy: allkeys-lru

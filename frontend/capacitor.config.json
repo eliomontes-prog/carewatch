@@ -4,7 +4,7 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
-    "allowNavigation": ["*.ouraring.com"]
+    "allowNavigation": ["*.ouraring.com", "192.168.0.80"]
   },
   "plugins": {
     "SplashScreen": {
@@ -33,7 +33,7 @@
     "contentInset": "automatic",
     "backgroundColor": "#F9FAFB",
     "scrollEnabled": true,
-    "limitsNavigationsToAppBoundDomains": true
+    "limitsNavigationsToAppBoundDomains": false
   },
   "android": {
     "backgroundColor": "#F9FAFB",

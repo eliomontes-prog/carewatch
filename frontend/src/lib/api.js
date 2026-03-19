@@ -8,8 +8,8 @@ import { Capacitor } from '@capacitor/core';
 // In the browser dev server the Vite proxy handles /api → localhost:4000.
 function resolveBase() {
   if (Capacitor.isNativePlatform()) {
-    // Production native app: use the real server URL
-    return import.meta.env.VITE_API_URL || 'https://carewatch-backend.onrender.com';
+    // Native app: use env var (production Render URL) or fall back to local dev IP
+    return import.meta.env.VITE_API_URL || 'http://192.168.0.80:4000';
   }
   // Browser (dev or PWA): relative path works via Vite proxy
   return import.meta.env.VITE_API_URL || '';
@@ -31,7 +31,7 @@ export async function apiFetch(path, options = {}) {
 // WebSocket URL resolver
 export function wsUrl(path = '/ws') {
   if (Capacitor.isNativePlatform()) {
-    const base = (import.meta.env.VITE_WS_URL || 'wss://carewatch-backend.onrender.com');
+    const base = (import.meta.env.VITE_WS_URL || 'ws://192.168.0.80:4000');
     return `${base}${path}`;
   }
   // Browser: derive from current host

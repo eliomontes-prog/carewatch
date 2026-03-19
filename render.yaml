@@ -50,7 +50,7 @@ services:
       - key: SENDGRID_FROM_EMAIL
         sync: false
       - key: CORS_ORIGIN
-        sync: false   # e.g. https://carewatch.onrender.com
+        sync: false   # e.g. https://carewatch-frontend.onrender.com
       - key: FRONTEND_URL
         sync: false   # same as CORS_ORIGIN
       - key: ESCALATION_TIER1_MINUTES
@@ -60,19 +60,13 @@ services:
       - key: ALERT_COOLDOWN_MINUTES
         value: "15"
 
-  # ── Frontend Static Site ──────────────────────────────────────
-  - type: static
+  # ── Frontend (served as a Node web service) ───────────────────
+  - type: web
     name: carewatch-frontend
+    runtime: node
     buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: ./frontend/dist
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    startCommand: npx serve -s frontend/dist -l 3000
+    plan: starter
     envVars:
       - key: VITE_API_URL
         sync: false   # e.g. https://carewatch-backend.onrender.com

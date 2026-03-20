@@ -25,8 +25,10 @@ import wearablesRouter  from './api/wearables.js';
 import authRouter       from './api/auth.js';
 import pushRouter       from './api/push.js';
 import analyticsRouter  from './api/analytics.js';
+import auditRouter     from './api/audit.js';
 import { attachPoseStream, streamStats, feedESP32Frame } from './services/poseStream.js';
 import { requireAuth } from './middleware/requireAuth.js';
+import { auditMiddleware } from './middleware/auditMiddleware.js';
 import { z } from 'zod';
 import { validate } from './api/validate.js';
 import './services/esp32-bridge.js';
@@ -79,6 +81,9 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// ── Audit logging ────────────────────────────────────────────────
+app.use(auditMiddleware);
+
 // ── Health ────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({
   status:    'ok',
@@ -97,6 +102,7 @@ app.use('/api/residents',  requireAuth, residentsRouter);
 app.use('/api/alerts',     requireAuth, alertsRouter);
 app.use('/api/wearables',  requireAuth, wearablesRouter);
 app.use('/api/analytics',  analyticsRouter);  // router handles auth internally
+app.use('/api/audit',      requireAuth, auditRouter);
 
 // Live room status
 app.get('/api/rooms', requireAuth, (req, res) => {

@@ -12,7 +12,9 @@ export function getDb() {
 }
 
 export async function initSchema() {
-  const sql = readFileSync(resolve(__dirname, 'migrations/001_initial.sql'), 'utf8');
-  await db.run(sql);
+  const sql001 = readFileSync(resolve(__dirname, 'migrations/001_initial.sql'), 'utf8');
+  await db.run(sql001);
+  const sql002 = readFileSync(resolve(__dirname, 'migrations/002_audit_log.sql'), 'utf8');
+  await db.run(sql002);
   console.log('✅ Database schema initialized (PostgreSQL)');
 }

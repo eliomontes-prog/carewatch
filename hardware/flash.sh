@@ -82,6 +82,22 @@ else
   echo "     --target-ip $TARGET_IP"
 fi
 
+# Register node with backend (optional, non-blocking)
+BACKEND_PORT="${BACKEND_PORT:-4000}"
+NODE_ID="${NODE_ID:-esp32-$(basename "$PORT")}"
+NODE_LABEL="${NODE_LABEL:-ESP32 $(basename "$PORT")}"
+MAC=$(python3 -m esptool --chip esp32s3 --port "$PORT" read_mac 2>/dev/null \
+      | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1)
+
+if curl -sf -X POST "http://${TARGET_IP}:${BACKEND_PORT}/api/nodes/register" \
+     -H "Content-Type: application/json" \
+     -d "{\"id\":\"${NODE_ID}\",\"label\":\"${NODE_LABEL}\",\"mac_address\":\"${MAC:-unknown}\",\"room\":\"default\"}" \
+     > /dev/null 2>&1; then
+  echo "📡 Registered node '${NODE_LABEL}' with backend"
+else
+  echo "ℹ️  Backend not reachable — node will self-register when data flows"
+fi
+
 echo ""
 echo "🎉 Done! The ESP32-S3 will start streaming CSI to $TARGET_IP:5005"
 echo "   Make sure the CareWatch backend is running on that machine."

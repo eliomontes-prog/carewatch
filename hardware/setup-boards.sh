@@ -13,6 +13,7 @@ SSID=""
 PASSWORD=""
 TARGET_IP=""
 BOARD_COUNT=""
+BACKEND_PORT="${BACKEND_PORT:-4000}"
 BAUD=460800
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -24,7 +25,8 @@ while [[ $# -gt 0 ]]; do
     --password)   PASSWORD="$2"; shift 2 ;;
     --target-ip)  TARGET_IP="$2"; shift 2 ;;
     --boards)     BOARD_COUNT="$2"; shift 2 ;;
-    --baud)       BAUD="$2"; shift 2 ;;
+    --baud)           BAUD="$2"; shift 2 ;;
+    --backend-port)   BACKEND_PORT="$2"; shift 2 ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS]"
       echo ""
@@ -34,6 +36,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --target-ip IP     Backend server IP address"
       echo "  --boards N         Number of boards to flash"
       echo "  --baud RATE        Flash baud rate (default: 460800)"
+      echo "  --backend-port N   Backend API port (default: 4000)"
       echo "  -h, --help         Show this help"
       exit 0
       ;;
@@ -122,6 +125,29 @@ verify_board() {
   local port="$1"
   echo "  Verifying chip on $port..."
   python3 -m esptool --chip esp32s3 --port "$port" chip_id
+}
+
+read_mac() {
+  local port="$1"
+  python3 -m esptool --chip esp32s3 --port "$port" read_mac 2>/dev/null \
+    | grep -oE '([0-9a-f]{2}:){5}[0-9a-f]{2}' | head -1
+}
+
+register_node() {
+  local board_num="$1" mac="$2"
+  local node_id="esp32-node-${board_num}"
+  local label="Node ${board_num}"
+  local backend_url="http://${TARGET_IP}:${BACKEND_PORT}"
+  echo "  Registering ${label} (${node_id}) with backend at ${backend_url}..."
+  local payload="{\"id\":\"${node_id}\",\"label\":\"${label}\",\"mac_address\":\"${mac}\",\"room\":\"default\"}"
+  if curl -sf -X POST "${backend_url}/api/nodes/register" \
+       -H "Content-Type: application/json" \
+       -d "$payload" > /dev/null 2>&1; then
+    echo "  Registered with backend."
+  else
+    echo "  WARNING: Could not register with backend (is it running?)."
+    echo "  The node will self-register when data starts flowing."
+  fi
 }
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
@@ -224,6 +250,13 @@ for i in $(seq 1 "$BOARD_COUNT"); do
   flash_board "$port"
   provision_board "$port"
 
+  # Read MAC address and register with backend
+  mac="$(read_mac "$port")"
+  if [[ -n "$mac" ]]; then
+    echo "  MAC address: $mac"
+  fi
+  register_node "$i" "${mac:-unknown}"
+
   echo "  Board $i complete!"
 
   if [[ $i -lt $BOARD_COUNT ]]; then
@@ -248,5 +281,6 @@ echo ""
 echo "  Next steps:"
 echo "    1. Start the backend:  cd backend && npm start"
 echo "    2. Open the dashboard: http://localhost:3000"
-echo "    3. Boards will auto-connect and stream CSI data"
+echo "    3. Boards will auto-connect, register, and stream CSI data"
+echo "    4. Check registered nodes: http://${TARGET_IP}:${BACKEND_PORT}/api/nodes"
 echo "========================================"

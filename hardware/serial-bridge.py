@@ -17,10 +17,17 @@ import math
 import sys
 import urllib.request
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/cu.usbmodem3101"
-BAUD = 115200
-BACKEND_URL = "http://localhost:4000/api/esp32/frame"
-ROOM = "default"
+import os
+
+PORT = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("ESP32_SERIAL_PORT", "/dev/cu.usbmodem3101")
+BAUD = int(os.environ.get("ESP32_SERIAL_BAUD", "115200"))
+BACKEND_HOST = os.environ.get("BACKEND_HOST", "localhost")
+BACKEND_PORT = os.environ.get("BACKEND_PORT", os.environ.get("PORT", "4000"))
+BACKEND_URL = os.environ.get("ESP32_BACKEND_URL", f"http://{BACKEND_HOST}:{BACKEND_PORT}/api/esp32/frame")
+REGISTER_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}/api/nodes/register"
+ROOM = os.environ.get("ESP32_DEFAULT_ROOM", "default")
+NODE_ID = os.environ.get("ESP32_NODE_ID", "serial-bridge-1")
+NODE_LABEL = os.environ.get("ESP32_NODE_LABEL", "Serial Bridge Node")
 FPS = 10  # Target frames per second
 
 # ANSI escape stripper
@@ -75,12 +82,35 @@ def post_frame(frame):
         pass
 
 
+def register_with_backend():
+    """Register this serial bridge as a node with the backend."""
+    try:
+        payload = json.dumps({
+            "id": NODE_ID,
+            "label": NODE_LABEL,
+            "room": ROOM,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            REGISTER_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=3)
+        print(f"  Registered as '{NODE_LABEL}' ({NODE_ID})")
+    except Exception as e:
+        print(f"  Could not register with backend: {e}")
+        print(f"  Node will appear once frames start flowing.")
+
+
 def main():
     global last_rssi, frame_count
 
     print(f"🔌 Serial bridge: {PORT} @ {BAUD}")
     print(f"📡 Forwarding to: {BACKEND_URL}")
     print()
+
+    register_with_backend()
 
     ser = serial.Serial(PORT, BAUD, timeout=0.1)
     time.sleep(1)
@@ -195,7 +225,7 @@ def main():
                 },
                 "nodes": [
                     {
-                        "node_id": 1,
+                        "node_id": NODE_ID,
                         "rssi_dbm": round(mean_rssi, 1),
                         "amplitude": amplitudes,
                         "subcarrier_count": 56,

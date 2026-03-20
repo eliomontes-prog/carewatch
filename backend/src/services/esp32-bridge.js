@@ -20,10 +20,10 @@ import path  from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
-const UDP_PORT    = 5005;
-const BACKEND_URL = 'http://localhost:4000/api/esp32/frame';
+const UDP_PORT    = parseInt(process.env.ESP32_UDP_PORT || '5005');
+const BACKEND_URL = process.env.ESP32_BACKEND_URL || `http://localhost:${process.env.PORT || 4000}/api/esp32/frame`;
 const MODEL_PATH  = path.join(__dirname, '../../data/subject-model.json');
-const ROOM        = 'default';
+const ROOM        = process.env.ESP32_DEFAULT_ROOM || 'default';
 
 // ── Rolling signal buffers ───────────────────────────────────────
 const WINDOW    = 300;  // ~30s at ~10fps

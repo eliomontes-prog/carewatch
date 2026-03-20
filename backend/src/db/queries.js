@@ -238,3 +238,80 @@ export const pushSubs = {
       [residentId]
     ),
 };
+
+// ── Nodes ─────────────────────────────────────────────────────────────────────
+
+export const nodes = {
+  getAll: async () =>
+    db.all(`SELECT * FROM nodes ORDER BY created_at`),
+
+  getById: async (id) =>
+    db.get(`SELECT * FROM nodes WHERE id = $1`, [id]),
+
+  getByMac: async (mac) =>
+    db.get(`SELECT * FROM nodes WHERE mac_address = $1`, [mac]),
+
+  getByRoom: async (room) =>
+    db.all(`SELECT * FROM nodes WHERE room = $1 ORDER BY label`, [room]),
+
+  getOnline: async () =>
+    db.all(`SELECT * FROM nodes WHERE status = 'online' ORDER BY room, label`),
+
+  create: async (node) =>
+    db.run(
+      `INSERT INTO nodes (id, label, mac_address, ip_address, room, position_x, position_y, position_z, firmware_version, status, config)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (id) DO UPDATE SET
+         label = EXCLUDED.label,
+         mac_address = EXCLUDED.mac_address,
+         ip_address = EXCLUDED.ip_address,
+         room = EXCLUDED.room,
+         position_x = EXCLUDED.position_x,
+         position_y = EXCLUDED.position_y,
+         position_z = EXCLUDED.position_z,
+         firmware_version = EXCLUDED.firmware_version,
+         status = EXCLUDED.status,
+         config = EXCLUDED.config`,
+      [node.id, node.label, node.mac_address || null, node.ip_address || null,
+       node.room || 'default', node.position_x ?? 0, node.position_y ?? 0, node.position_z ?? 1.5,
+       node.firmware_version || null, node.status || 'online', node.config || '{}']
+    ),
+
+  update: async (id, fields) =>
+    db.run(
+      `UPDATE nodes SET label = COALESCE($1, label), room = COALESCE($2, room),
+       position_x = COALESCE($3, position_x), position_y = COALESCE($4, position_y),
+       position_z = COALESCE($5, position_z), config = COALESCE($6, config)
+       WHERE id = $7`,
+      [fields.label, fields.room, fields.position_x, fields.position_y,
+       fields.position_z, fields.config, id]
+    ),
+
+  heartbeat: async (id, ip) =>
+    db.run(
+      `UPDATE nodes SET status = 'online', last_heartbeat = NOW(), ip_address = COALESCE($1, ip_address)
+       WHERE id = $2`,
+      [ip, id]
+    ),
+
+  recordFrame: async (id) =>
+    db.run(
+      `UPDATE nodes SET last_frame_at = NOW(), frames_total = frames_total + 1, status = 'online'
+       WHERE id = $1`,
+      [id]
+    ),
+
+  markOffline: async (id) =>
+    db.run(`UPDATE nodes SET status = 'offline' WHERE id = $1`, [id]),
+
+  // Mark nodes offline if no heartbeat in given minutes
+  markStaleOffline: async (minutes = 2) =>
+    db.run(
+      `UPDATE nodes SET status = 'offline'
+       WHERE status = 'online' AND last_heartbeat < NOW() - ($1 || ' minutes')::INTERVAL`,
+      [minutes]
+    ),
+
+  remove: async (id) =>
+    db.run(`DELETE FROM nodes WHERE id = $1`, [id]),
+};

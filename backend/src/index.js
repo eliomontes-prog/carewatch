@@ -26,6 +26,7 @@ import authRouter       from './api/auth.js';
 import pushRouter       from './api/push.js';
 import analyticsRouter  from './api/analytics.js';
 import auditRouter     from './api/audit.js';
+import nodesRouter     from './api/nodes.js';
 import { attachPoseStream, streamStats, feedESP32Frame } from './services/poseStream.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { auditMiddleware } from './middleware/auditMiddleware.js';
@@ -34,7 +35,7 @@ import { validate } from './api/validate.js';
 import './services/esp32-bridge.js';
 
 const enrollSchema = z.object({
-  subject:  z.enum(['elio']),
+  subject:  z.string().min(1).max(50),
   duration: z.number().int().min(10).max(300).optional().default(60),
 });
 
@@ -103,6 +104,7 @@ app.use('/api/alerts',     requireAuth, alertsRouter);
 app.use('/api/wearables',  requireAuth, wearablesRouter);
 app.use('/api/analytics',  analyticsRouter);  // router handles auth internally
 app.use('/api/audit',      requireAuth, auditRouter);
+app.use('/api/nodes',      requireAuth, nodesRouter);
 
 // Live room status
 app.get('/api/rooms', requireAuth, (req, res) => {
@@ -164,12 +166,36 @@ function broadcast(data) {
 // ── Room Status Cache ─────────────────────────────────────────────
 const roomStatus = new Map();
 
-// ── Node definitions ──────────────────────────────────────────────
-const NODES = [
-  { node_id: 1, position: [2.0, 0.0, 1.5] },
-  { node_id: 2, position: [0.0, 3.0, 1.5] },
-  { node_id: 3, position: [4.0, 3.0, 1.5] },
-];
+// ── Dynamic node management ──────────────────────────────────────
+import { nodes as nodeQueries } from './db/queries.js';
+
+// Unauthenticated endpoints for ESP32 self-registration & heartbeat
+app.post('/api/nodes/register', (req, res, next) => {
+  const { id, label, mac_address, ip_address, room, firmware_version } = req.body || {};
+  if (!id || !label) return res.status(400).json({ error: 'id and label required' });
+  nodeQueries.create({
+    id, label, mac_address, ip_address,
+    room: room || 'default', firmware_version, status: 'online',
+  })
+    .then(() => nodeQueries.heartbeat(id, ip_address || req.ip))
+    .then(() => nodeQueries.getById(id))
+    .then(node => {
+      console.log(`📡 Node registered: ${label} (${id}) in room ${node.room}`);
+      res.status(201).json({ ok: true, config: JSON.parse(node.config || '{}') });
+    })
+    .catch(next);
+});
+
+app.post('/api/nodes/:id/heartbeat', (req, res, next) => {
+  const ip = req.body?.ip_address || req.ip;
+  nodeQueries.heartbeat(req.params.id, ip)
+    .then(() => nodeQueries.getById(req.params.id))
+    .then(node => {
+      if (!node) return res.status(404).json({ error: 'Node not found — register first' });
+      res.json({ ok: true, config: JSON.parse(node.config || '{}') });
+    })
+    .catch(next);
+});
 
 function extractFeaturesFromFrame(frame) {
   const raw = frame.raw;
@@ -195,6 +221,12 @@ async function handleFrame(frame) {
   broadcast({ type: 'frame', data: frame });
 
   if (frame.raw) feedESP32Frame(frame.raw);
+
+  // Track which nodes are sending data
+  const frameNodes = frame.raw?.nodes || [];
+  for (const n of frameNodes) {
+    if (n.node_id) nodeQueries.recordFrame(String(n.node_id)).catch(() => {});
+  }
 
   if (bridgeModule) {
     const features = extractFeaturesFromFrame(frame);
@@ -295,6 +327,11 @@ cron.schedule('0 20 * * *', () => {
 // Escalation check every 5 minutes
 cron.schedule('*/5 * * * *', () => {
   runEscalationCheck().catch(err => console.error('❌ Escalation error:', err.message));
+});
+
+// Mark stale nodes offline every 2 minutes
+cron.schedule('*/2 * * * *', () => {
+  nodeQueries.markStaleOffline(2).catch(err => console.error('❌ Stale node check error:', err.message));
 });
 
 // ── Start Server ──────────────────────────────────────────────────

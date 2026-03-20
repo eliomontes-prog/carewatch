@@ -16,5 +16,7 @@ export async function initSchema() {
   await db.run(sql001);
   const sql002 = readFileSync(resolve(__dirname, 'migrations/002_audit_log.sql'), 'utf8');
   await db.run(sql002);
+  const sql003 = readFileSync(resolve(__dirname, 'migrations/003_nodes.sql'), 'utf8');
+  await db.run(sql003);
   console.log('✅ Database schema initialized (PostgreSQL)');
 }

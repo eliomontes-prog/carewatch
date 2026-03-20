@@ -51,11 +51,7 @@ class ErrorBoundary extends Component {
 const API = API_BASE;
 const WS  = wsUrl('/ws');
 
-const BOARDS = [
-  { id: 1, mac: '10:20:ba:4e:22:bc', ip: '192.168.0.212', label: 'Node A' },
-  { id: 2, mac: '10:20:ba:4e:39:dc', ip: '192.168.0.45',  label: 'Node B' },
-  { id: 3, mac: '10:20:ba:4e:3a:68', ip: '192.168.0.8',   label: 'Node C' },
-];
+// Nodes are now fetched dynamically from the backend via GET /api/nodes
 
 const SUBJECTS = {
   elio: {
@@ -425,7 +421,7 @@ function EnrollmentPanel({ onEnrolled }) {
 
 // ── Tab Components ──────────────────────────────────────────────
 
-function OverviewTab({ vitals, subjectId, nodesOn, S, history }) {
+function OverviewTab({ vitals, subjectId, nodesOn, S, history, registeredNodes }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Resident card */}
@@ -560,7 +556,12 @@ function OverviewTab({ vitals, subjectId, nodesOn, S, history }) {
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-          {BOARDS.map(b => (
+          {registeredNodes.length === 0 && (
+            <div style={{ padding: '12px 14px', fontSize: 'clamp(12px, 1.5vw, 13px)', color: 'var(--cw-text-secondary)' }}>
+              No nodes registered. Plug in an ESP32 sensor or add one via the Nodes tab.
+            </div>
+          )}
+          {registeredNodes.map(b => (
             <div key={b.id} style={{
               padding: '12px 14px',
               borderRadius: 'var(--cw-radius-sm)',
@@ -587,7 +588,7 @@ function OverviewTab({ vitals, subjectId, nodesOn, S, history }) {
                 color: 'var(--cw-text-secondary)',
                 fontFamily: 'monospace',
               }}>
-                {b.ip}
+                {b.ip_address || b.room}
               </div>
             </div>
           ))}
@@ -832,66 +833,128 @@ function AlertsTab({ alerts, onAck }) {
   );
 }
 
-function NodesTab({ nodesOn }) {
+function NodesTab({ nodesOn, registeredNodes, onAddNode, onDeleteNode }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newRoom, setNewRoom] = useState('default');
+  const [newMac, setNewMac] = useState('');
+  const [newIp, setNewIp] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const handleAdd = async () => {
+    if (!newLabel.trim()) return;
+    setAdding(true);
+    await onAddNode({ label: newLabel.trim(), room: newRoom, mac_address: newMac || null, ip_address: newIp || null });
+    setNewLabel(''); setNewRoom('default'); setNewMac(''); setNewIp('');
+    setShowAdd(false);
+    setAdding(false);
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--cw-border)',
+    fontSize: 13, fontFamily: 'inherit', background: 'var(--cw-bg)', color: 'var(--cw-text)',
+    outline: 'none', boxSizing: 'border-box',
+  };
+
   return (
-    <Card>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{
-          fontSize: 'clamp(10px, 1.3vw, 11px)',
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          color: 'var(--cw-text-tertiary)',
-          textTransform: 'uppercase',
-          marginBottom: 6,
-        }}>
-          Sensor Network
-        </div>
-        <p style={{ fontSize: 'clamp(12px, 1.5vw, 13px)', color: 'var(--cw-text-secondary)' }}>
-          3 ESP32-S3 nodes · WiFi CSI · UDP → 192.168.0.168:5005
-        </p>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {BOARDS.map((b, i) => (
-          <div key={b.id} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '14px 0',
-            borderTop: i > 0 ? '1px solid var(--cw-border)' : 'none',
-          }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
             <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: 'var(--cw-radius-sm)',
-              flexShrink: 0,
-              background: nodesOn[b.id] ? 'rgba(37, 99, 235, 0.08)' : 'var(--cw-bg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 18,
+              fontSize: 'clamp(10px, 1.3vw, 11px)', fontWeight: 600,
+              letterSpacing: '0.08em', color: 'var(--cw-text-tertiary)', textTransform: 'uppercase', marginBottom: 6,
             }}>
-              📡
+              Sensor Network
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'clamp(13px, 1.6vw, 15px)', fontWeight: 600, marginBottom: 2 }}>
-                {b.label}
-              </div>
-              <div style={{
-                fontSize: 'clamp(11px, 1.2vw, 12px)',
-                color: 'var(--cw-text-secondary)',
-                fontFamily: 'monospace',
-              }}>
-                {b.mac} · {b.ip}
-              </div>
-            </div>
-            <StatusIndicator
-              status={nodesOn[b.id] ? 'good' : 'neutral'}
-              label={nodesOn[b.id] ? 'Active' : 'Offline'}
-            />
+            <p style={{ fontSize: 'clamp(12px, 1.5vw, 13px)', color: 'var(--cw-text-secondary)', margin: 0 }}>
+              {registeredNodes.length} node{registeredNodes.length !== 1 ? 's' : ''} registered · WiFi CSI
+            </p>
           </div>
-        ))}
-      </div>
-    </Card>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            style={{
+              padding: '6px 16px', borderRadius: 20, border: '1px solid var(--cw-border)',
+              background: showAdd ? 'var(--cw-bg)' : 'rgba(37, 99, 235, 0.08)',
+              color: 'var(--cw-text)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+            }}
+          >
+            {showAdd ? 'Cancel' : '+ Add Node'}
+          </button>
+        </div>
+
+        {showAdd && (
+          <div style={{
+            padding: 16, borderRadius: 12, background: 'var(--cw-bg)',
+            border: '1px solid var(--cw-border)', marginBottom: 16,
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <input style={inputStyle} placeholder="Label (e.g. Living Room Node A)" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
+            <input style={inputStyle} placeholder="Room (e.g. bedroom)" value={newRoom} onChange={e => setNewRoom(e.target.value)} />
+            <input style={inputStyle} placeholder="MAC address (optional)" value={newMac} onChange={e => setNewMac(e.target.value)} />
+            <input style={inputStyle} placeholder="IP address (optional)" value={newIp} onChange={e => setNewIp(e.target.value)} />
+            <button
+              onClick={handleAdd}
+              disabled={adding || !newLabel.trim()}
+              style={{
+                padding: '10px 20px', borderRadius: 22, border: 'none',
+                background: '#2563EB', color: '#fff', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                opacity: adding || !newLabel.trim() ? 0.5 : 1,
+              }}
+            >
+              {adding ? 'Registering...' : 'Register Node'}
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {registeredNodes.length === 0 && (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--cw-text-secondary)', fontSize: 13 }}>
+              No nodes registered yet. Click "Add Node" above or plug in an ESP32 sensor.
+            </div>
+          )}
+          {registeredNodes.map((b, i) => (
+            <div key={b.id} style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 0', borderTop: i > 0 ? '1px solid var(--cw-border)' : 'none',
+            }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 'var(--cw-radius-sm)', flexShrink: 0,
+                background: nodesOn[b.id] ? 'rgba(37, 99, 235, 0.08)' : 'var(--cw-bg)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>
+                📡
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 'clamp(13px, 1.6vw, 15px)', fontWeight: 600, marginBottom: 2 }}>
+                  {b.label}
+                </div>
+                <div style={{ fontSize: 'clamp(11px, 1.2vw, 12px)', color: 'var(--cw-text-secondary)', fontFamily: 'monospace' }}>
+                  {[b.mac_address, b.ip_address, b.room].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+              <StatusIndicator
+                status={nodesOn[b.id] ? 'good' : 'neutral'}
+                label={nodesOn[b.id] ? 'Active' : 'Offline'}
+              />
+              {onDeleteNode && (
+                <button
+                  onClick={() => { if (confirm(`Remove node "${b.label}"?`)) onDeleteNode(b.id); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--cw-text-tertiary)', fontSize: 16, padding: '4px 8px',
+                  }}
+                  title="Remove node"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -1812,7 +1875,8 @@ export default function App() {
   const [subjectId, setSubjectId] = useState(null);
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [nodesOn, setNodesOn] = useState({ 1: false, 2: false, 3: false });
+  const [nodesOn, setNodesOn] = useState({});
+  const [registeredNodes, setRegisteredNodes] = useState([]);
   const [lastUp, setLastUp] = useState(null);
   const [view, setView] = useState('overview');
   const subject = 'elio'; // Single-subject (human-only) mode
@@ -1833,10 +1897,13 @@ export default function App() {
       (f.raw?.nodes || []).forEach(n => {
         activeNodes[n.node_id] = true;
       });
-      setNodesOn(prev => ({
-        ...prev,
-        ...Object.fromEntries(BOARDS.map(b => [b.id, !!activeNodes[b.id]])),
-      }));
+      setNodesOn(prev => {
+        const next = {};
+        // Preserve existing keys as false, then overlay active nodes
+        for (const k of Object.keys(prev)) next[k] = false;
+        for (const k of Object.keys(activeNodes)) next[k] = true;
+        return next;
+      });
       setHistory(p =>
         [
           ...p,
@@ -1856,12 +1923,41 @@ export default function App() {
 
   const wsOn = useWebSocket(WS, onMsg);
 
+  // Fetch registered nodes
+  const fetchNodes = useCallback(() => {
+    fetch(`${API}/api/nodes`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setRegisteredNodes(d); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchNodes();
+    // Refresh node list every 30s to pick up self-registrations and status changes
+    const interval = setInterval(fetchNodes, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNodes]);
+
   useEffect(() => {
     fetch(`${API}/api/alerts?limit=10`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => Array.isArray(d) && setAlerts(d))
       .catch(() => {});
   }, []);
+
+  const addNode = async (nodeData) => {
+    await fetch(`${API}/api/nodes`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nodeData),
+    }).catch(() => {});
+    fetchNodes();
+  };
+
+  const deleteNode = async (id) => {
+    await fetch(`${API}/api/nodes/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    fetchNodes();
+  };
 
   const ack = async id => {
     await fetch(`${API}/api/alerts/${id}/acknowledge`, { method: 'POST', credentials: 'include' }).catch(() => {});
@@ -2207,7 +2303,7 @@ export default function App() {
         }}>
           {view === 'overview' && (
             <ErrorBoundary label="Overview">
-              <OverviewTab vitals={vitals} subjectId={subjectId} nodesOn={nodesOn} S={S} history={history} />
+              <OverviewTab vitals={vitals} subjectId={subjectId} nodesOn={nodesOn} S={S} history={history} registeredNodes={registeredNodes} />
             </ErrorBoundary>
           )}
 
@@ -2243,7 +2339,7 @@ export default function App() {
 
           {view === 'nodes' && (
             <ErrorBoundary label="Nodes">
-              <NodesTab nodesOn={nodesOn} />
+              <NodesTab nodesOn={nodesOn} registeredNodes={registeredNodes} onAddNode={addNode} onDeleteNode={deleteNode} />
             </ErrorBoundary>
           )}
 

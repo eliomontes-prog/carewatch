@@ -126,7 +126,12 @@
       "Bash(brew services:*)",
       "Bash(docker ps:*)",
       "Bash(docker compose:*)",
-      "Bash(npx cap:*)"
+      "Bash(npx cap:*)",
+      "Bash(gh auth:*)",
+      "Bash(timeout 8 npx electron .)",
+      "Bash(git push:*)",
+      "Bash(lsof -ti:5005)",
+      "Bash(kill 33991)"
     ]
   }
 }
